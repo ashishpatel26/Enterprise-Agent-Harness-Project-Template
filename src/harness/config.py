@@ -17,7 +17,6 @@ from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 Environment = Literal["dev", "test", "prod"]
 StorageBackend = Literal["memory", "redis"]
-SandboxBackend = Literal["docker", "local_unsafe"]
 
 
 class Settings(BaseSettings):
@@ -54,8 +53,11 @@ class Settings(BaseSettings):
     embedding_dim: int = Field(default=256, gt=0)
 
     # --- Sandbox -----------------------------------------------------------
-    sandbox_backend: SandboxBackend = "docker"
+    # "docker", "local_unsafe", or the name of a `harness.sandboxes` plugin.
+    sandbox_backend: str = "docker"
     sandbox_image: str = "agent-harness-sandbox:latest"
+    # Optional hardened OCI runtime for sandbox containers, e.g. "runsc" (gVisor).
+    sandbox_runtime: str | None = None
     allow_unsafe_sandbox: bool = False
     workspace_root: Path = Path("examples")
 
@@ -64,6 +66,8 @@ class Settings(BaseSettings):
     policy_path: Path = Path("policies/default.yaml")
     audit_log_path: Path = Path("var/audit.log")
     rate_limit_per_minute: int = Field(default=60, ge=1)
+    # web_fetch is disabled until domains are allow-listed (comma-separated).
+    web_fetch_allowed_domains: Annotated[list[str], NoDecode] = Field(default_factory=list)
 
     # --- Observability -----------------------------------------------------
     otel_endpoint: str | None = None
@@ -76,7 +80,7 @@ class Settings(BaseSettings):
             return [k.strip() for k in v.split(",") if k.strip()]
         return v
 
-    @field_validator("cors_origins", mode="before")
+    @field_validator("cors_origins", "web_fetch_allowed_domains", mode="before")
     @classmethod
     def _split_origins(cls, v: object) -> object:
         if isinstance(v, str):

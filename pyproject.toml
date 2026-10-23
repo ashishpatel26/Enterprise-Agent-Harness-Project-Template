@@ -43,6 +43,7 @@ dev = [
     "types-jsonschema",
     "types-docker",
     "fakeredis>=2.26",
+    "types-requests>=2.33.0.20261006",
 ]
 
 [build-system]
