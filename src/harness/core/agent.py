@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Sequence
-from typing import Protocol
+from typing import Any, Protocol
 
 from harness.core.agent_spec import AgentSpec
 from harness.core.loop import AgentLoop
@@ -76,6 +76,8 @@ class Agent:
         user_id: str = "anonymous",
         session_id: str | None = None,
         parent_run_id: str | None = None,
+        run_id: str | None = None,
+        metadata: dict[str, Any] | None = None,
     ) -> RunState:
         """Assemble the prompt and return a PENDING run. Nothing is executed yet."""
         recalled: list[str] = []
@@ -102,7 +104,10 @@ class Agent:
             messages=messages,
             tools=self.tools.specs(self.spec.tools),
             parent_run_id=parent_run_id,
+            metadata=dict(metadata or {}),
         )
+        if run_id:
+            state.run_id = run_id
         if session_id:
             state.session_id = session_id
         if self.store is not None:

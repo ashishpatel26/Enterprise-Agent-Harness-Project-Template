@@ -32,7 +32,7 @@ from harness.core.types import (
     utcnow,
 )
 from harness.llm.base import LLMError, LLMProvider
-from harness.llm.types import LLMResponse, Message, ToolCall
+from harness.llm.types import LLMResponse, Message, ToolCall, Usage
 from harness.observability.tracing import span
 from harness.prompts.trimming import compact
 
@@ -260,6 +260,11 @@ class AgentLoop:
         for call in calls:
             outcome = state.tool_results.pop(call.id)
             state.decisions.pop(call.id, None)
+            # Tools that spend model tokens on the run's behalf (sub-agent delegation)
+            # report it, so budgets and cost accounting cover the whole tree.
+            if isinstance(spent := outcome.metadata.get("usage"), dict):
+                state.usage = state.usage + Usage.model_validate(spent)
+            state.cost_usd += float(outcome.metadata.get("cost_usd") or 0.0)
             state.messages.append(Message.tool(call, outcome.content, is_error=outcome.is_error))
             await self._emit(
                 state,

@@ -245,7 +245,12 @@ class ToolRegistry:
         try:
             async with asyncio.timeout(tool.timeout_s):
                 result = await tool.fn(**kwargs)
-            content, is_error = _render(result), False
+            if isinstance(result, ToolOutcome):
+                # Tools that need to flag errors or report metadata return an outcome.
+                meta.update(result.metadata)
+                content, is_error = result.content, result.is_error
+            else:
+                content, is_error = _render(result), False
         except TimeoutError:
             content, is_error = f"Tool {tool.name} timed out after {tool.timeout_s}s", True
             meta["timeout"] = True

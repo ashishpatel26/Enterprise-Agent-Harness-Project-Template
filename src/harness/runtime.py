@@ -15,6 +15,7 @@ import socket
 import uuid
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
+from typing import Any
 
 from harness.config import Settings, get_settings
 from harness.core.agent import Agent
@@ -157,9 +158,32 @@ class Harness:
             redactor=redactor,
             llm_overrides=dict(llm_overrides or {}),
         )
+        from harness.orchestration import install_delegation
+
+        install_delegation(harness, registry)
         for install in extra_tools:
             install(harness, registry)
+        harness.validate()
         return harness
+
+    def validate(self) -> None:
+        """Fail fast at startup on agent definitions that cannot run."""
+        problems: list[str] = []
+        known = set(self.registry.names())
+        for spec in self.specs.values():
+            for tool in spec.tools:
+                if tool not in known:
+                    hint = " (no sandbox configured)" if tool == "python_exec" else ""
+                    problems.append(f"{spec.name}: unknown tool {tool!r}{hint}")
+            for sub in spec.sub_agents:
+                if sub not in self.specs:
+                    problems.append(f"{spec.name}: unknown sub-agent {sub!r}")
+                elif sub == spec.name:
+                    problems.append(f"{spec.name}: an agent cannot delegate to itself")
+            if spec.sub_agents and "delegate" not in spec.tools:
+                problems.append(f"{spec.name}: has sub_agents but not the 'delegate' tool")
+        if problems:
+            raise ValueError("invalid agent definitions:\n- " + "\n- ".join(problems))
 
     async def startup(self) -> None:
         """One-time async initialization (schema, crash recovery)."""
@@ -183,6 +207,18 @@ class Harness:
         spec = self.specs.get(name)
         if spec is None:
             raise KeyError(f"unknown agent {name!r}; available: {sorted(self.specs)}")
+        if spec.sub_agents:
+            # Tell the supervisor who it can delegate to; the prompt stays frozen per run.
+            roster = "\n".join(
+                f"- {sub}: {self.specs[sub].description or 'no description'}"
+                for sub in spec.sub_agents
+            )
+            instructions = (
+                f"{spec.prompt.instructions}\n\n## Sub-agents you can delegate to\n{roster}"
+            )
+            spec = spec.model_copy(
+                update={"prompt": spec.prompt.model_copy(update={"instructions": instructions})}
+            )
         llm = self.llm_overrides.get(name) or build_llm(spec.model, self.settings)
         tools = IdempotentExecutor(self.registry, self.state.idempotency)
         agent = Agent(
@@ -213,11 +249,18 @@ class Harness:
         session_id: str | None = None,
         owner: str | None = None,
         parent_run_id: str | None = None,
+        run_id: str | None = None,
+        metadata: dict[str, Any] | None = None,
     ) -> RunState:
         text = validate_user_input(user_input, max_chars=self.settings.max_input_chars)
         agent = self.agent(agent_name)
         state = await agent.new_run(
-            text, user_id=user_id, session_id=session_id, parent_run_id=parent_run_id
+            text,
+            user_id=user_id,
+            session_id=session_id,
+            parent_run_id=parent_run_id,
+            run_id=run_id,
+            metadata=metadata,
         )
         state.metadata["owner"] = owner or user_id
         await self.state.runs.save(state)
