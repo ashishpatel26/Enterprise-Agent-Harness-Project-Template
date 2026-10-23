@@ -125,7 +125,8 @@ async def test_wall_clock_timeout() -> None:
     state = await loop.run(_state())
     assert state.stop_reason == StopReason.TIMEOUT
     assert state.status == RunStatus.FAILED
-    assert state.elapsed_s >= 0.05
+    # Allow for coarse OS timers (~15.6 ms ticks on Windows).
+    assert state.elapsed_s >= 0.03
 
 
 async def test_timeout_budget_spans_resumes() -> None:
