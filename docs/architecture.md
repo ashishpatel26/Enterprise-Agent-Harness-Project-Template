@@ -117,6 +117,44 @@ A supervisor is a normal agent with `tools: [delegate]` and `sub_agents: [...]`.
 
 Parallel delegation comes for free: several `delegate` calls in one turn run concurrently.
 
+## Engines
+
+`engine:` in an agent's YAML selects who drives the reasoning loop. Governance is the
+same either way.
+
+| | `native` (default) | `agno` |
+|---|---|---|
+| Loop | Harness `AgentLoop` | [Agno](https://github.com/agno-agi/agno) `Agent.arun` |
+| Models | Harness providers (Anthropic, OpenAI, plugins) with retry/fallback/cost | Same by default, via a bridge `Model`; or `agno.model: "<provider>:<model>"` for any of Agno's ~60 integrations |
+| Tool calls | Harness pipeline | Harness pipeline. Every Agno tool is a thin `Function` whose entrypoint calls the guard and executor. |
+| Budgets, events, audit, stop reasons | ✓ | ✓ (enforced in the bridge model; with a native Agno model, only time and tool-call limits are enforced in-loop, and cost is computed after the run) |
+| Crash recovery | Resumes mid-loop from the last checkpoint | Restarts from the task (checkpoints still record progress) |
+| Approvals | Durable pause: the run returns, resumes after the decision | Held in-process until a decision or `agno.approval_timeout_s`; decisions via API, MCP or an inline approver (CLI/evals) |
+| Streaming | Token deltas | One text event per model turn |
+
+Choose `native` for long, approval-heavy, crash-sensitive work; choose `agno` when you
+want Agno's model breadth or ecosystem.
+
+## MCP
+
+The [Model Context Protocol](https://modelcontextprotocol.io) is implemented with
+[FastMCP](https://gofastmcp.com) in both directions.
+
+- **Client** (`harness.mcp.client`): `MCPHub` connects at startup to the servers in
+  `mcp_servers.yaml` (stdio or streamable HTTP).
+  - Each remote tool is registered as `<server>__<tool>` with the server's JSON schema.
+  - Permission comes from the tool annotations: read-only → `read`, destructive →
+    `dangerous`, otherwise `write`. The config can override it, and an allow-list can
+    restrict which tools are exposed.
+  - `${VAR}` in headers, URLs and arguments is read from the environment.
+  - A server that fails to connect is skipped and reported, not fatal.
+  - Agents opt in per server with `mcp: [server]`.
+- **Server** (`harness.mcp.server`): exposes `list_agents`, `run_agent`, `get_run` and
+  `approve_tool_call`.
+  - Over HTTP it is mounted at `/mcp/` on the API behind the same API keys. A key is a
+    tenant, exactly as in the REST API.
+  - Over stdio (`harness mcp-serve`), the local user is the tenant.
+
 ## Extension points
 
 | To add | Implement | Register |

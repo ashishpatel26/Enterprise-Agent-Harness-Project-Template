@@ -44,7 +44,9 @@ class Agent:
         guard: ToolGuard | None = None,
         store: StateStore | None = None,
         sinks: Sequence[EventSink] = (),
+        inline_approver: Any = None,
     ) -> None:
+        self.inline_approver = inline_approver
         self.spec = spec
         self.llm = llm
         self.tools = tools
@@ -59,15 +61,25 @@ class Agent:
         return self.spec.name
 
     def loop(self, extra_sinks: Sequence[EventSink] = ()) -> AgentLoop:
-        return AgentLoop(
-            self.llm,
-            self.tools,
-            limits=self.spec.limits,
-            max_output_tokens=self.spec.model.max_tokens,
-            guard=self.guard,
-            store=self.store,
-            sinks=[*self.sinks, *extra_sinks],
-        )
+        kwargs: dict[str, Any] = {
+            "limits": self.spec.limits,
+            "max_output_tokens": self.spec.model.max_tokens,
+            "guard": self.guard,
+            "store": self.store,
+            "sinks": [*self.sinks, *extra_sinks],
+        }
+        if self.spec.engine == "agno":
+            from harness.engines.agno_engine import AgnoLoop
+
+            return AgnoLoop(
+                self.llm,
+                self.tools,
+                native_model=self.spec.agno.model,
+                approval_timeout_s=self.spec.agno.approval_timeout_s,
+                approver=self.inline_approver,
+                **kwargs,
+            )
+        return AgentLoop(self.llm, self.tools, **kwargs)
 
     async def new_run(
         self,

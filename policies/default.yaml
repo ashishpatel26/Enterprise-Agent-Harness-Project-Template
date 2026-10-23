@@ -37,5 +37,5 @@ rules:
   # may use it without a human in the loop; every other agent needs approval (default).
   - name: analysts-run-sandboxed-code
     tools: [python_exec]
-    agents: [data_analyst, coding]
+    agents: [data_analyst, data_analyst_agno, coding]
     effect: allow

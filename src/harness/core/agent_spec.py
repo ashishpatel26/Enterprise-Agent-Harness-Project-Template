@@ -7,6 +7,7 @@ all come from YAML and are validated here before anything runs.
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Literal
 
 import yaml
 from pydantic import BaseModel, ConfigDict, Field
@@ -30,6 +31,15 @@ class MemoryConfig(BaseModel):
     include_session_history: bool = True
 
 
+class AgnoConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    # None: use the harness model (retries, fallback, cost, budgets) bridged into Agno.
+    # "<provider>:<model>" or "<module>:<Class>:<model>": use an Agno-native model.
+    model: str | None = None
+    approval_timeout_s: float = Field(default=600.0, gt=0, le=86_400)
+
+
 class AgentSpec(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -43,6 +53,11 @@ class AgentSpec(BaseModel):
     limits: RunLimits = Field(default_factory=RunLimits)
     memory: MemoryConfig = Field(default_factory=MemoryConfig)
     policy: str | None = None
+    # Reasoning loop: "native" (resumable harness loop) or "agno" (Agno under governance).
+    engine: Literal["native", "agno"] = "native"
+    agno: AgnoConfig = Field(default_factory=AgnoConfig)
+    # MCP servers (from mcp_servers.yaml) whose tools this agent may use.
+    mcp: list[str] = Field(default_factory=list)
 
     @classmethod
     def from_yaml(cls, path: Path) -> AgentSpec:

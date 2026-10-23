@@ -49,6 +49,11 @@ def _error(code: int, error: str, detail: str) -> JSONResponse:
 
 def create_app(harness: Harness | None = None) -> FastAPI:
     settings = harness.settings if harness else get_settings()
+    mcp_app = None
+    if settings.mcp_server_enabled:
+        from harness.mcp.server import build_mcp_server
+
+        mcp_app = build_mcp_server(lambda: app.state.harness).http_app(path="/")
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
@@ -62,7 +67,12 @@ def create_app(harness: Harness | None = None) -> FastAPI:
         log.info("harness ready", extra={"agents": sorted(h.specs), "worker": h.worker_id})
         recovery = asyncio.create_task(_recover_periodically(h))
         try:
-            yield
+            if mcp_app is not None:
+                # FastMCP's streamable-HTTP session manager needs its own lifespan.
+                async with mcp_app.lifespan(mcp_app):
+                    yield
+            else:
+                yield
         finally:
             recovery.cancel()
             with contextlib.suppress(asyncio.CancelledError):
@@ -78,6 +88,17 @@ def create_app(harness: Harness | None = None) -> FastAPI:
     if harness is not None:
         app.state.harness = harness
     app.include_router(router)
+    if mcp_app is not None:
+        from harness.mcp.server import APIKeyGuard
+
+        # MCP over streamable HTTP, same API keys and tenancy as the REST API.
+        app.mount(
+            "/mcp",
+            APIKeyGuard(
+                mcp_app,
+                lambda: [k.get_secret_value() for k in app.state.harness.settings.api_keys],
+            ),
+        )
 
     if settings.cors_origins:
         app.add_middleware(

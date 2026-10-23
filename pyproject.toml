@@ -27,6 +27,8 @@ dependencies = [
     "opentelemetry-exporter-otlp-proto-grpc>=1.28",
     "prometheus-client>=0.21",
     "typer>=0.13",
+    "fastmcp>=4.1",
+    "agno>=3.1",
 ]
 
 [project.optional-dependencies]

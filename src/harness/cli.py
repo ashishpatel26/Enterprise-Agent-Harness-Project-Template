@@ -19,7 +19,7 @@ import typer
 
 from harness.config import Settings, get_settings
 from harness.core.agent_spec import load_agents
-from harness.core.types import RunEvent, RunState, RunStatus
+from harness.core.types import ApprovalDecision, RunEvent, RunState, RunStatus
 from harness.demo import SCRIPTS
 from harness.llm.base import LLMProvider
 from harness.llm.factory import ModelRef, build_provider
@@ -27,7 +27,7 @@ from harness.llm.factory import ModelRef, build_provider
 app = typer.Typer(add_completion=False, no_args_is_help=True, help="agent-harness CLI")
 
 # Agents with a scripted offline trajectory (used when no API key is configured).
-OFFLINE_SCRIPTS = {"data_analyst": "data_analyst_demo"}
+OFFLINE_SCRIPTS = {"data_analyst": "data_analyst_demo", "data_analyst_agno": "data_analyst_demo"}
 
 
 def _has_key(provider: str, s: Settings) -> bool:
@@ -88,6 +88,17 @@ async def _run(
         overrides[agent] = SCRIPTS[script]()
     harness = Harness.build(settings, llm_overrides=overrides)
 
+    async def approve_inline(state: RunState, call: Any, reason: str) -> ApprovalDecision | None:
+        if auto_approve:
+            ok = True
+        elif sys.stdin.isatty():
+            typer.echo(json.dumps(call.arguments, indent=2)[:2000])
+            ok = typer.confirm(f"Approve {call.name} ({reason})?", default=False)
+        else:
+            return None
+        return ApprovalDecision(call_id=call.id, approved=ok, reviewer=f"cli:{user}")
+
+    harness.inline_approver = approve_inline
     if not as_json:
 
         async def printer(event: RunEvent) -> None:
@@ -216,6 +227,25 @@ def serve(host: str = "127.0.0.1", port: int = 8000, reload: bool = False) -> No
     import uvicorn
 
     uvicorn.run("harness.api.app:create_app", factory=True, host=host, port=port, reload=reload)
+
+
+@app.command(name="mcp-serve")
+def mcp_serve(
+    transport: Annotated[str, typer.Option(help="stdio (local clients) or http")] = "stdio",
+    host: str = "127.0.0.1",
+    port: int = 8001,
+) -> None:
+    """Expose the harness agents as an MCP server (Claude Desktop/Code, IDEs, agents)."""
+    from harness.mcp.server import build_mcp_server
+    from harness.runtime import Harness
+
+    harness = Harness.build(get_settings())
+    asyncio.run(harness.startup())
+    server = build_mcp_server(lambda: harness)
+    if transport == "stdio":
+        server.run(transport="stdio", show_banner=False)
+    else:
+        server.run(transport="http", host=host, port=port, show_banner=False)
 
 
 @app.command(name="audit-verify")

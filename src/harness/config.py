@@ -68,6 +68,10 @@ class Settings(BaseSettings):
     # Optional project prompt templates (<dir>/<name>/vN.md) overriding the built-ins.
     prompts_dir: Path | None = None
     policy_path: Path = Path("policies/default.yaml")
+    # External MCP servers whose tools agents can use (see mcp_servers.example.yaml).
+    mcp_config_path: Path = Path("mcp_servers.yaml")
+    # Expose agents as an MCP server at /mcp on the API.
+    mcp_server_enabled: bool = True
     audit_log_path: Path = Path("var/audit.log")
     rate_limit_per_minute: int = Field(default=60, ge=1)
     tool_calls_per_minute: int = Field(default=120, ge=1)

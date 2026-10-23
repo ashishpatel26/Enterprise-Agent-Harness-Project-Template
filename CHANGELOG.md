@@ -6,6 +6,17 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- MCP client (FastMCP): external MCP servers configured in `mcp_servers.yaml` become
+  governed harness tools (`<server>__<tool>`) with annotation-derived permissions,
+  allow-lists, env-var secrets and per-server failure isolation. Agents opt in with `mcp:`.
+- MCP server (FastMCP): `list_agents`, `run_agent`, `get_run`, `approve_tool_call` over
+  streamable HTTP at `/mcp/` (API-key tenancy) and stdio (`harness mcp-serve`).
+- Agno engine: `engine: agno` runs the reasoning loop with Agno under harness governance
+  (tool pipeline, budgets, approvals, events, audit); bridge model or Agno-native models.
+- `data_analyst_agno` example agent; works offline like the native demo.
+
 ## [0.1.0] - 2026-10-23
 
 ### Added

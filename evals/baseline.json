@@ -10,6 +10,10 @@
         "pii-table-blocked": {
           "passed": true,
           "score": 1.0
+        },
+        "sales-insights-agno": {
+          "passed": true,
+          "score": 1.0
         }
       }
     }

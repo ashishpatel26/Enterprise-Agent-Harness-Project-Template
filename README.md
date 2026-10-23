@@ -20,9 +20,12 @@
 ![Docker](https://img.shields.io/badge/sandbox-Docker%20%7C%20K8s-2496ED?logo=docker&logoColor=white)
 ![Helm](https://img.shields.io/badge/deploy-Helm-0F1689?logo=helm&logoColor=white)
 ![OpenTelemetry](https://img.shields.io/badge/traces-OpenTelemetry-425CC7?logo=opentelemetry&logoColor=white)
+![MCP](https://img.shields.io/badge/MCP-FastMCP%20client%20%2B%20server-111827?logo=anthropic&logoColor=white)
+![Agno](https://img.shields.io/badge/engine-Agno-ff4f00)
 
 [**Quickstart**](#-5-minute-quickstart) ·
 [**Features**](#-features) ·
+[**MCP + Agno**](#-built-on-open-standards-mcp--agno) ·
 [**Architecture**](#-architecture) ·
 [**First agent**](#-create-your-first-agent) ·
 [**Add a tool**](#-add-a-tool) ·
@@ -82,7 +85,48 @@ Every box on the map at the top of this page is a package in this repo:
 | 📈 **Observability** | OpenTelemetry spans with GenAI conventions; Prometheus metrics; JSON logs with redaction; per-run trace view |
 | 🧪 **Evals** | YAML task sets; exact, contains, regex, tool-use and stop-reason scorers; LLM-as-judge rubrics; reports; a baseline regression gate in CI |
 | 🌐 **API** | FastAPI: runs, SSE streaming with resume, approvals, cancel, traces, health and metrics; API-key tenancy |
+| 🔌 **MCP** | FastMCP client (external MCP servers as governed tools) and server (agents callable from any MCP client over HTTP or stdio) |
+| 🦾 **Engines** | `native` (resumable harness loop) or `agno` (Agno loop with ~60 model integrations) per agent, under the same governance |
 | 🚀 **Deploy** | Multi-stage non-root Dockerfile; docker-compose (Redis, pgvector, OTel, Jaeger); Helm chart with HPA, PDB, NetworkPolicies and least-privilege RBAC |
+
+## 🧩 Built on open standards: MCP + Agno
+
+The harness is the governance layer. The ecosystem's most widely used building blocks
+plug into it, so you get their reach without giving up control.
+
+| Integration | What it gives you | How |
+|---|---|---|
+| **MCP client** ([FastMCP](https://gofastmcp.com)) | Use any of the thousands of MCP servers (GitHub, Slack, Jira, Postgres, filesystem, internal services) as agent tools | `mcp_servers.yaml` + `mcp: [github]` in an agent. Each remote tool becomes `<server>__<tool>` and runs through validation, timeouts, policy, approvals, injection screening, redaction and audit. |
+| **MCP server** (FastMCP) | Call your governed agents from Claude Desktop, Claude Code, IDEs or other agents | Streamable HTTP at `/mcp/` on the API (same API keys and tenancy), or `harness mcp-serve` over stdio. Tools: `list_agents`, `run_agent`, `get_run`, `approve_tool_call`. |
+| **Agno engine** ([Agno](https://github.com/agno-agi/agno)) | Agno's agent loop and its ~60 model integrations (Bedrock, Gemini, Groq, Ollama, Azure, LiteLLM, ...) | `engine: agno` in an agent's YAML. Agno drives the reasoning; every tool call still goes through the harness pipeline, and budgets, events, audit and stop reasons stay the same. |
+
+```yaml
+# mcp_servers.yaml: external tools, governed like built-ins
+servers:
+  github:
+    transport: http
+    url: https://api.githubcopilot.com/mcp/
+    headers: {Authorization: "Bearer ${GITHUB_TOKEN}"}
+    tools: [search_repositories, get_file_contents]   # allow-list
+```
+
+```yaml
+# agents/data_analyst_agno.yaml: Agno as the engine, harness as the governor
+name: data_analyst_agno
+engine: agno
+agno: {model: null}          # harness model (retries, fallback, cost) or e.g. "anthropic:claude-opus-5-5"
+tools: [python_exec, file_read, sql_query]
+mcp: [github]                # optional: tools from MCP servers
+```
+
+```bash
+uv run harness run data_analyst_agno "Analyze data/sales.csv and give me insights"   # works offline too
+uv run harness mcp-serve      # add to Claude Desktop/Code as a stdio MCP server
+```
+
+```json
+{ "mcpServers": { "agent-harness": { "command": "uv", "args": ["run", "harness", "mcp-serve"] } } }
+```
 
 ## 🏗️ Architecture
 
@@ -102,6 +146,10 @@ flowchart LR
     TR --> SB[Sandbox<br/>Docker / K8s Pod]
     TR --> T2[file_read · sql_query · web_fetch]
     TR -->|delegate| SUB[Sub-agents]
+    TR -->|MCP client| MCPS[(External MCP servers)]
+    MC[MCP clients<br/>Claude · IDEs · agents] -->|/mcp| API
+    RT -.->|engine: agno| AGNO[Agno loop]
+    AGNO -->|every tool call| G
     G -->|screen output| LOOP
     LOOP -->|checkpoint| ST[(State · Redis)]
     LOOP <-->|recall / record| MEM[(Memory<br/>Redis · pgvector)]
@@ -191,6 +239,7 @@ curl -s "localhost:8000/runs/<run_id>/trace?format=html" -H "X-API-Key: $KEY" > 
 | `GET /runs/{id}/trace` | Step timeline with LLM and tool timings (`?format=html`) |
 | `GET /agents` | Configured agents |
 | `GET /healthz` · `/readyz` · `/metrics` | Liveness, readiness, Prometheus |
+| `POST /mcp/` | MCP (streamable HTTP): `list_agents`, `run_agent`, `get_run`, `approve_tool_call` |
 
 ## 🤖 Create your first agent
 
@@ -315,6 +364,8 @@ src/harness/
 ├── safety/          policy, guard, approvals, audit, redaction, rate limits
 ├── state/           checkpoints, leases, idempotency
 ├── orchestration/   supervisor → sub-agent delegation
+├── mcp/             FastMCP client (MCP servers as tools) + server (agents over MCP)
+├── engines/         Agno engine under harness governance
 ├── observability/   tracing, metrics, logging
 ├── evals/           task sets, scorers, runner
 ├── api/             FastAPI app, auth, SSE, traces

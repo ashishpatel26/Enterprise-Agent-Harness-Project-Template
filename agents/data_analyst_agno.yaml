@@ -1,0 +1,23 @@
+# The data analyst, with Agno driving the reasoning loop. Everything else is the harness:
+# same tools, sandbox, policy, approvals, budgets, events and audit trail.
+#   harness run data_analyst_agno "Analyze data/sales.csv and give me insights"
+name: data_analyst_agno
+description: Data analyst running on the Agno engine under harness governance.
+engine: agno
+agno:
+  # Omit `model` to use the harness model below (retries, fallback, cost accounting).
+  # Or pick any Agno-native model, e.g. "anthropic:claude-opus-5-5", "groq:<model>".
+  model: null
+  approval_timeout_s: 600
+model:
+  provider: anthropic
+  name: claude-opus-5-5
+  effort: high
+prompt:
+  template: react@v1
+  instructions: |
+    You are a careful data analyst. Workspace paths are relative to the workspace root.
+    Use python_exec with files=["data/sales.csv"] and read /data/sales.csv. Report
+    insights with the numbers that support them, then caveats. Never invent numbers.
+tools: [python_exec, file_read, sql_query]
+limits: {max_steps: 12, timeout_s: 300, max_cost_usd: 2.0}

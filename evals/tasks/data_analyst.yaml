@@ -48,3 +48,15 @@ tasks:
       rubric: >
         Names West as the top region and North as second, and gives the revenue gap
         (about $6,935) or equivalent percentages.
+
+  - id: sales-insights-agno
+    agent: data_analyst_agno
+    input: Analyze data/sales.csv and give me insights
+    script: data_analyst_demo
+    tags: [smoke, sandbox, agno]
+    expect:
+      contains: [West, Gizmo, Online, "705 orders"]
+      not_contains: ["could not complete"]
+      tools_called: [python_exec]
+      max_steps: 4
+      stop_reason: completed

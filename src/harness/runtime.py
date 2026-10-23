@@ -24,6 +24,7 @@ from harness.core.types import EventSink, RunEvent, RunState, RunStatus, StopRea
 from harness.events import EventBus, InMemoryEventBus, RedisEventBus
 from harness.llm.base import LLMProvider
 from harness.llm.factory import build_llm
+from harness.mcp.client import MCPConfig, MCPHub
 from harness.memory import MemoryManager, PgVectorMemory, build_memory
 from harness.observability.logging import run_id_var
 from harness.observability.metrics import RUN_DURATION, RUNS_ACTIVE, MetricsSink
@@ -81,9 +82,13 @@ class Harness:
     llm_overrides: dict[str, LLMProvider] = field(default_factory=dict)
     # Extra event sinks for every run (CLI progress output, custom exporters).
     extra_sinks: list[EventSink] = field(default_factory=list)
+    # Optional in-process approver for engines that wait inline (Agno): CLI and evals.
+    inline_approver: Any = None
     worker_id: str = field(
         default_factory=lambda: f"{socket.gethostname()}:{os.getpid()}:{uuid.uuid4().hex[:6]}"
     )
+    mcp_config: MCPConfig = field(default_factory=MCPConfig)
+    mcp: MCPHub = field(default_factory=MCPHub)
     _agents: dict[str, Agent] = field(default_factory=dict)
     _tasks: dict[str, asyncio.Task[RunState]] = field(default_factory=dict)
     _locks: dict[str, asyncio.Lock] = field(default_factory=dict)
@@ -159,6 +164,7 @@ class Harness:
             rate_limiter=rate_limiter,
             redactor=redactor,
             llm_overrides=dict(llm_overrides or {}),
+            mcp_config=MCPConfig.load(s.mcp_config_path),
         )
         from harness.orchestration import install_delegation
 
@@ -182,13 +188,18 @@ class Harness:
                     problems.append(f"{spec.name}: unknown sub-agent {sub!r}")
                 elif sub == spec.name:
                     problems.append(f"{spec.name}: an agent cannot delegate to itself")
+            for server in spec.mcp:
+                if server not in self.mcp_config.servers:
+                    problems.append(f"{spec.name}: unknown MCP server {server!r}")
             if spec.sub_agents and "delegate" not in spec.tools:
                 problems.append(f"{spec.name}: has sub_agents but not the 'delegate' tool")
         if problems:
             raise ValueError("invalid agent definitions:\n- " + "\n- ".join(problems))
 
     async def startup(self) -> None:
-        """One-time async initialization (schema, crash recovery)."""
+        """One-time async initialization (MCP connections, schema, crash recovery)."""
+        if self.mcp_config.servers and not self.mcp.server_tools:
+            await self.mcp.connect(self.mcp_config, self.registry)
         if isinstance(self.memory.long_term, PgVectorMemory):
             await self.memory.long_term.ensure_schema()
         await self.recover()
@@ -197,6 +208,7 @@ class Harness:
         for task in list(self._tasks.values()):
             task.cancel()
         await asyncio.gather(*self._tasks.values(), return_exceptions=True)
+        await self.mcp.aclose()
         if self.sandbox is not None:
             await self.sandbox.aclose()
         for agent in self._agents.values():
@@ -221,6 +233,11 @@ class Harness:
             spec = spec.model_copy(
                 update={"prompt": spec.prompt.model_copy(update={"instructions": instructions})}
             )
+        if spec.mcp:
+            # MCP tools are known only after startup() connected the servers. A server
+            # that failed to connect is skipped (logged in startup), not fatal.
+            extra = [t for server in spec.mcp for t in self.mcp.server_tools.get(server, [])]
+            spec = spec.model_copy(update={"tools": [*spec.tools, *extra]})
         llm = self.llm_overrides.get(name) or build_llm(spec.model, self.settings)
         tools = IdempotentExecutor(self.registry, self.state.idempotency)
         agent = Agent(
@@ -231,6 +248,7 @@ class Harness:
             memory=self.memory,
             guard=self.guard,
             store=self.state.runs,
+            inline_approver=self.inline_approver,
         )
         self._agents[name] = agent
         return agent
@@ -338,11 +356,19 @@ class Harness:
         self, run_id: str, call_id: str, *, approved: bool, reviewer: str, comment: str = ""
     ) -> RunState:
         """Record an approval decision; resume in the background once nothing is pending."""
-        lock = self._locks.setdefault(run_id, asyncio.Lock())
-        async with lock:
+        current = await self.get(run_id)
+        if current.metadata.get("engine") == "agno":
+            # The Agno run is still executing (holding the run lock) and polls the store
+            # for this decision; taking the lock here would deadlock.
             state = await self.approvals.decide(
                 run_id, call_id, approved=approved, reviewer=reviewer, comment=comment
             )
+        else:
+            lock = self._locks.setdefault(run_id, asyncio.Lock())
+            async with lock:
+                state = await self.approvals.decide(
+                    run_id, call_id, approved=approved, reviewer=reviewer, comment=comment
+                )
         await self.events.publish(
             RunEvent(
                 type="approval_decided",
@@ -351,6 +377,8 @@ class Harness:
                 data={"call_id": call_id, "approved": approved, "reviewer": reviewer},
             )
         )
+        if state.metadata.get("engine") == "agno":
+            return state  # the Agno run is waiting in-process and picks the decision up
         if not state.pending_approvals:
             state.status = RunStatus.RUNNING
             await self.state.runs.save(state)

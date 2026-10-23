@@ -1,0 +1,21 @@
+# Copy to mcp_servers.yaml (or set HARNESS_MCP_CONFIG_PATH) to give agents MCP tools.
+# Agents opt in per server:   mcp: [files, github]
+# Each remote tool becomes `<server>__<tool>` and runs through the full harness pipeline:
+# schema validation, timeout, policy, approvals, injection screening, redaction, audit.
+# ${VAR} is read from the environment; a missing variable is an error.
+servers:
+  files:
+    transport: stdio
+    command: npx
+    args: ["-y", "@modelcontextprotocol/server-filesystem", "./examples"]
+    permission: read          # override the server's annotations for all its tools
+    timeout_s: 30
+
+  github:
+    transport: http
+    url: https://api.githubcopilot.com/mcp/
+    headers:
+      Authorization: "Bearer ${GITHUB_TOKEN}"
+    tools: [search_repositories, get_file_contents]   # allow-list: only these are exposed
+    timeout_s: 30
+    enabled: false            # flip to true once GITHUB_TOKEN is set

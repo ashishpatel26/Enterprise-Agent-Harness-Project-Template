@@ -17,7 +17,7 @@ from typing import Any
 from pydantic import BaseModel, Field
 
 from harness.config import Settings
-from harness.core.types import RunStatus
+from harness.core.types import ApprovalDecision, RunState, RunStatus
 from harness.demo import SCRIPTS
 from harness.evals.scorers import Score, deterministic_scores, rubric_score, tools_called
 from harness.evals.tasks import EvalSuite, EvalTask
@@ -83,8 +83,15 @@ async def run_task(
         overrides[agent] = SCRIPTS[task.script]()
     # A fresh harness per task: no memory or rate-limit state leaks between tasks.
     harness = Harness.build(settings, llm_overrides=overrides)
+    if task.auto_approve:
+
+        async def approve(state: RunState, call: Any, reason: str) -> ApprovalDecision:
+            return ApprovalDecision(call_id=call.id, approved=True, reviewer="eval")
+
+        harness.inline_approver = approve
     started = time.perf_counter()
     try:
+        await harness.startup()
         state = await harness.run(agent, task.input, user_id=f"eval:{suite.suite}")
         approvals = 0
         while (
