@@ -80,7 +80,7 @@ class FakeLLM(LLMProvider):
         tools: Sequence[ToolSpec] = (),
         *,
         max_tokens: int = 4096,
-        temperature: float = 0.0,
+        temperature: float | None = None,
     ) -> LLMResponse:
         self.calls.append(list(messages))
         if not self._script:

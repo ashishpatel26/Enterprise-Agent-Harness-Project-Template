@@ -11,7 +11,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 Role = Literal["system", "user", "assistant", "tool"]
-FinishReason = Literal["end_turn", "tool_use", "max_tokens", "error"]
+FinishReason = Literal["end_turn", "tool_use", "max_tokens", "refusal"]
 
 
 class ToolCall(BaseModel):
@@ -30,6 +30,14 @@ class Message(BaseModel):
     tool_call_id: str | None = None
     name: str | None = None
     is_error: bool = False
+    # Assistant turns keep the provider's raw content blocks (e.g. Claude thinking
+    # blocks with signatures) so they can be replayed byte-for-byte to the same
+    # provider. Replaying them unchanged is required for preserved thinking.
+    raw_content: list[dict[str, Any]] | None = None
+    raw_provider: str | None = None
+
+    def without_raw(self) -> Message:
+        return self.model_copy(update={"raw_content": None, "raw_provider": None})
 
     @classmethod
     def system(cls, content: str) -> Message:
@@ -63,15 +71,24 @@ class ToolSpec(BaseModel):
 class Usage(BaseModel):
     input_tokens: int = 0
     output_tokens: int = 0
+    cache_read_tokens: int = 0
+    cache_write_tokens: int = 0
 
     @property
     def total_tokens(self) -> int:
-        return self.input_tokens + self.output_tokens
+        return (
+            self.input_tokens
+            + self.output_tokens
+            + self.cache_read_tokens
+            + self.cache_write_tokens
+        )
 
     def __add__(self, other: Usage) -> Usage:
         return Usage(
             input_tokens=self.input_tokens + other.input_tokens,
             output_tokens=self.output_tokens + other.output_tokens,
+            cache_read_tokens=self.cache_read_tokens + other.cache_read_tokens,
+            cache_write_tokens=self.cache_write_tokens + other.cache_write_tokens,
         )
 
 

@@ -45,7 +45,7 @@ class LLMProvider(abc.ABC):
         tools: Sequence[ToolSpec] = (),
         *,
         max_tokens: int = 4096,
-        temperature: float = 0.0,
+        temperature: float | None = None,
     ) -> LLMResponse:
         """Return one complete assistant turn."""
 
@@ -55,7 +55,7 @@ class LLMProvider(abc.ABC):
         tools: Sequence[ToolSpec] = (),
         *,
         max_tokens: int = 4096,
-        temperature: float = 0.0,
+        temperature: float | None = None,
     ) -> AsyncIterator[StreamEvent]:
         """Stream a turn. Default: one `chat` call replayed as events.
 
