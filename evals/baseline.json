@@ -1,0 +1,17 @@
+{
+  "suites": {
+    "data_analyst": {
+      "pass_rate": 1.0,
+      "tasks": {
+        "sales-insights": {
+          "passed": true,
+          "score": 1.0
+        },
+        "pii-table-blocked": {
+          "passed": true,
+          "score": 1.0
+        }
+      }
+    }
+  }
+}

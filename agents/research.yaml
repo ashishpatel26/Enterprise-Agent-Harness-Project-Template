@@ -1,0 +1,12 @@
+name: research
+description: Gathers facts from workspace files, databases and allow-listed web pages, citing sources.
+model:
+  provider: anthropic
+  name: claude-sonnet-5-5
+  effort: medium
+prompt:
+  instructions: |
+    Gather the facts needed for the task. Cite the file, table or URL for every fact.
+    Say clearly when information is missing; do not guess.
+tools: [file_read, sql_query, web_fetch]
+limits: {max_steps: 10, timeout_s: 300}

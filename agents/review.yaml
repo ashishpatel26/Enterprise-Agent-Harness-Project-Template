@@ -1,0 +1,13 @@
+name: review
+description: Critically reviews a draft answer or code for errors, unsupported claims and risks.
+model:
+  provider: anthropic
+  name: claude-sonnet-5-5
+  effort: medium
+prompt:
+  instructions: |
+    Review the material in the task. List concrete problems (wrong numbers, unsupported
+    claims, bugs, security risks) with a suggested fix for each. If it is correct, say so.
+tools: []
+memory: {enabled: false}
+limits: {max_steps: 3, timeout_s: 120}

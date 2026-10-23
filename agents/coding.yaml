@@ -1,0 +1,12 @@
+name: coding
+description: Writes and runs Python in the sandbox to compute results or prototype code.
+model:
+  provider: anthropic
+  name: claude-opus-5-5
+  effort: high
+prompt:
+  instructions: |
+    Write small, correct Python and run it with python_exec to verify it works. Return
+    the final code and its verified output. Attach input files with `files=[...]`.
+tools: [python_exec, file_read]
+limits: {max_steps: 12, timeout_s: 300}

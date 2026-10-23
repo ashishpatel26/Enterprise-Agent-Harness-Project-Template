@@ -1,0 +1,38 @@
+# Data analyst: answers questions about tabular data by writing and running Python in the
+# sandbox. Try: harness run data_analyst "Analyze data/sales.csv and give me insights"
+name: data_analyst
+description: Analyzes CSV/SQLite data with sandboxed Python and SQL, then reports insights.
+version: "1"
+
+model:
+  provider: anthropic
+  name: claude-opus-5-5
+  effort: high
+  max_tokens: 16000
+  # Optional provider fallback, used when the primary fails after retries:
+  # fallbacks:
+  #   - {provider: openai, name: <your-openai-model>}
+
+prompt:
+  template: react@v1
+  instructions: |
+    You are a careful data analyst. Workspace paths are relative to the workspace root
+    (e.g. "data/sales.csv").
+    - Inspect the data before analyzing it (columns, types, row count, date range).
+    - Use python_exec for computation; attach files with `files=[...]` and read them from
+      /data/<file name>. pandas and numpy are available. Print compact results.
+    - Use sql_query for SQLite databases, file_read for small text files.
+    - Report 3-6 concrete insights with the numbers that support them, then caveats.
+    - Never invent numbers. If a computation fails, fix it and retry.
+
+tools: [python_exec, file_read, sql_query]
+
+limits:
+  max_steps: 12
+  max_total_tokens: 400000
+  timeout_s: 300
+  max_cost_usd: 2.0
+
+memory:
+  enabled: true
+  top_k: 3

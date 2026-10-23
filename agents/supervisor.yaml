@@ -1,0 +1,18 @@
+# Supervisor: plans, delegates to specialist sub-agents in parallel, reviews and combines.
+name: supervisor
+description: Coordinates research, coding and review sub-agents to complete larger tasks.
+model:
+  provider: anthropic
+  name: claude-opus-5-5
+  effort: high
+prompt:
+  template: supervisor@v1
+  instructions: |
+    Typical flow: research the question, have the coding agent compute or build what is
+    needed, then ask the review agent to check the result before you answer.
+tools: [delegate]
+sub_agents: [research, coding, review]
+limits:
+  max_steps: 16
+  timeout_s: 900
+  max_cost_usd: 5.0

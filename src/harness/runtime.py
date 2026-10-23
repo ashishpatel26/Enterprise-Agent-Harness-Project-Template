@@ -79,6 +79,8 @@ class Harness:
     rate_limiter: RateLimiter
     redactor: Redactor
     llm_overrides: dict[str, LLMProvider] = field(default_factory=dict)
+    # Extra event sinks for every run (CLI progress output, custom exporters).
+    extra_sinks: list[EventSink] = field(default_factory=list)
     worker_id: str = field(
         default_factory=lambda: f"{socket.gethostname()}:{os.getpid()}:{uuid.uuid4().hex[:6]}"
     )
@@ -237,7 +239,7 @@ class Harness:
         async def publish(event: RunEvent) -> None:
             await self.events.publish(event)
 
-        return [publish, MetricsSink(agent), AuditSink(self.audit)]
+        return [publish, MetricsSink(agent), AuditSink(self.audit), *self.extra_sinks]
 
     # ---- runs -----------------------------------------------------------------
     async def create_run(
