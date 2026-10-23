@@ -39,5 +39,11 @@ def test_prod_rejects_insecure_configuration() -> None:
 
 
 def test_prod_accepts_secure_configuration() -> None:
-    s = Settings(_env_file=None, env="prod", api_keys="k1", storage_backend="redis")
+    s = Settings(
+        _env_file=None,
+        env="prod",
+        api_keys="k1",
+        storage_backend="redis",
+        database_url="postgresql://h/db",
+    )
     assert s.env == "prod"

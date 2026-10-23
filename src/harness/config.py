@@ -96,6 +96,8 @@ class Settings(BaseSettings):
             problems.append("HARNESS_API_KEYS must be set in prod")
         if self.storage_backend == "memory":
             problems.append("HARNESS_STORAGE_BACKEND=memory is not allowed in prod")
+        if self.database_url is None:
+            problems.append("HARNESS_DATABASE_URL (Postgres + pgvector) must be set in prod")
         if self.sandbox_backend == "local_unsafe" or self.allow_unsafe_sandbox:
             problems.append("the local_unsafe sandbox is not allowed in prod")
         if problems:

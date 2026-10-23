@@ -191,7 +191,8 @@ class AgentLoop:
                         metadata={"denied": True},
                     )
                 continue
-            verdict = await self.guard.check_call(call, ctx) if self.guard else _ALLOW
+            call_ctx = ctx.model_copy(update={"call_id": call.id})
+            verdict = await self.guard.check_call(call, call_ctx) if self.guard else _ALLOW
             if verdict.verdict == "deny":
                 state.tool_results[call.id] = ToolOutcome(
                     content=f"Blocked by policy: {verdict.reason}",
@@ -208,10 +209,11 @@ class AgentLoop:
         async def run_one(call: ToolCall) -> None:
             async with sem:
                 await self._emit(state, "act", tool=call.name, call_id=call.id)
+                call_ctx = ctx.model_copy(update={"call_id": call.id})
                 with span("agent.tool", run_id=state.run_id, tool=call.name, call_id=call.id):
-                    outcome = await self.tools.execute(call, ctx)
+                    outcome = await self.tools.execute(call, call_ctx)
                     if self.guard:
-                        outcome = await self.guard.screen_output(call, outcome, ctx)
+                        outcome = await self.guard.screen_output(call, outcome, call_ctx)
                 state.tool_results[call.id] = outcome
                 await self._checkpoint(state)
 

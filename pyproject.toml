@@ -20,6 +20,7 @@ dependencies = [
     "redis>=5.2",
     "psycopg[binary,pool]>=3.2",
     "pgvector>=0.3.6",
+    "numpy>=2.0",
     "docker>=7.1",
     "opentelemetry-api>=1.28",
     "opentelemetry-sdk>=1.28",
@@ -80,6 +81,7 @@ testpaths = ["tests"]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 markers = [
+    "postgres: requires HARNESS_TEST_DATABASE_URL (Postgres with pgvector)",
     "docker: requires a running Docker daemon (auto-skipped when unavailable)",
     "integration: full-loop integration tests",
 ]

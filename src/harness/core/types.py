@@ -160,6 +160,13 @@ class ToolContext(BaseModel):
     user_id: str
     agent: str
     step: int
+    call_id: str = ""
+
+    @property
+    def idempotency_key(self) -> str:
+        """Stable per tool call across retries and resumes. Pass it to external APIs that
+        support idempotency keys so a replayed call never duplicates a side effect."""
+        return f"{self.run_id}:{self.call_id}"
 
 
 class ToolExecutor(Protocol):
