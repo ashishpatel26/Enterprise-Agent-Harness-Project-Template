@@ -199,3 +199,16 @@ async def test_errors_never_leak_secrets(make_harness: Any) -> None:
         ).json()
         assert run["stop_reason"] == "llm_error"
         assert "sk-ant" not in run["error"]
+
+
+def test_default_app_lifespan_builds_from_settings(monkeypatch: pytest.MonkeyPatch) -> None:
+    """create_app() with no harness: builds from settings, starts recovery, shuts down."""
+    from fastapi.testclient import TestClient
+
+    from harness.api.app import create_app
+
+    monkeypatch.setenv("HARNESS_AUDIT_LOG_PATH", "var/test-lifespan-audit.log")
+    with TestClient(create_app()) as c:
+        assert c.get("/healthz").json() == {"status": "ok"}
+        names = [a["name"] for a in c.get("/agents").json()]
+        assert {"data_analyst", "supervisor", "research", "coding", "review"} <= set(names)

@@ -1,0 +1,42 @@
+name: Bug report
+description: Something does not work as documented
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Security issue? Do not file it here; see SECURITY.md for private reporting.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what happened instead.
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      description: Minimal agent YAML, request, or test case. Remove any secrets.
+      render: shell
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs, stop reason, run trace
+      description: Relevant JSON log lines or `GET /runs/{id}/trace` output (redacted).
+      render: text
+  - type: input
+    id: version
+    attributes:
+      label: Version / commit
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options: [agent loop, llm providers, tools, sandbox, memory, safety/policy, state, orchestration, api, observability, evals, deployment/helm, docs]
+    validations:
+      required: true

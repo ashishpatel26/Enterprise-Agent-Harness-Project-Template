@@ -42,7 +42,7 @@ eval-baseline: ## Re-record the eval baseline (review the diff before committing
 	$(UV) run harness eval evals/tasks --write-baseline evals/baseline.json
 
 demo: ## Run the data-analyst agent on examples/data/sales.csv
-	$(UV) run harness run data_analyst "Analyze examples/data/sales.csv and give me insights"
+	$(UV) run harness run data_analyst "Analyze data/sales.csv and give me insights"
 
 sandbox-image: ## Build the locked-down sandbox image
 	docker build -f docker/sandbox.Dockerfile -t agent-harness-sandbox:latest .

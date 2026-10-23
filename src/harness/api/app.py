@@ -5,6 +5,8 @@ uvicorn harness.api.app:create_app --factory
 
 from __future__ import annotations
 
+import asyncio
+import contextlib
 import logging
 import uuid
 from collections.abc import AsyncIterator, Awaitable, Callable
@@ -29,6 +31,16 @@ log = logging.getLogger(__name__)
 MAX_BODY_BYTES = 1_000_000
 
 
+async def _recover_periodically(harness: Harness, interval_s: float = 30.0) -> None:
+    """Resume runs orphaned by a crashed replica once their lease has expired."""
+    while True:
+        await asyncio.sleep(interval_s)
+        try:
+            await harness.recover()
+        except Exception:
+            log.exception("run recovery sweep failed")
+
+
 def _error(code: int, error: str, detail: str) -> JSONResponse:
     return JSONResponse(
         {"error": error, "detail": detail, "request_id": request_id_var.get()}, status_code=code
@@ -48,9 +60,13 @@ def create_app(harness: Harness | None = None) -> FastAPI:
         app.state.harness = h
         await h.startup()
         log.info("harness ready", extra={"agents": sorted(h.specs), "worker": h.worker_id})
+        recovery = asyncio.create_task(_recover_periodically(h))
         try:
             yield
         finally:
+            recovery.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await recovery
             await h.aclose()
 
     app = FastAPI(
