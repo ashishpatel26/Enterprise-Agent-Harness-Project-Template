@@ -7,7 +7,7 @@ If this template helps you, please ⭐ the repo.
 </div>
 
 
-
+<div align="center">
 
 # Enterprise-Agent-Harness-Project-Template
 
@@ -39,9 +39,6 @@ If this template helps you, please ⭐ the repo.
 [**Docs**](#-documentation)
 
 <a href="https://github.com/ashishpatel26/Enterprise-Agent-Harness-Project-Template/generate"><img src="https://img.shields.io/badge/Use%20this%20template-2ea44f?style=for-the-badge&logo=github&logoColor=white" alt="Use this template"/></a>
-
-
-<div align="center">
 
 <img src="assets/agent-harness-map.gif" alt="AI agent harness: the complete map (agent loop, control plane, tools, sandbox, memory, safety, multi-agent, observability and evals)" width="820"/>
 </div>
