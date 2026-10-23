@@ -139,7 +139,8 @@ class AgentLoop:
         state.step += 1
         await self._emit(state, "think", model=self.llm.model)
         response: LLMResponse | None = None
-        with span("agent.think", run_id=state.run_id, step=state.step, model=self.llm.model):
+        started = time.perf_counter()
+        with span("agent.think", run_id=state.run_id, step=state.step, model=self.llm.model) as s:
             async for event in self.llm.stream(
                 state.messages, state.tools, max_tokens=self.max_output_tokens
             ):
@@ -147,8 +148,28 @@ class AgentLoop:
                     await self._emit(state, "text_delta", text=event.text)
                 elif event.type == "done":
                     response = event.response
-        if response is None:
-            raise LLMError("stream ended without a final response", provider=self.llm.name)
+            if response is None:
+                raise LLMError("stream ended without a final response", provider=self.llm.name)
+            # OpenTelemetry GenAI semantic-convention attributes.
+            s.set_attribute("gen_ai.system", response.provider)
+            s.set_attribute("gen_ai.response.model", response.model)
+            s.set_attribute("gen_ai.usage.input_tokens", response.usage.input_tokens)
+            s.set_attribute("gen_ai.usage.output_tokens", response.usage.output_tokens)
+            s.set_attribute("gen_ai.response.finish_reasons", [response.finish_reason])
+        await self._emit(
+            state,
+            "llm_call",
+            provider=response.provider,
+            model=response.model,
+            finish_reason=response.finish_reason,
+            latency_ms=round((time.perf_counter() - started) * 1000, 1),
+            input_tokens=response.usage.input_tokens,
+            output_tokens=response.usage.output_tokens,
+            cache_read_tokens=response.usage.cache_read_tokens,
+            cache_write_tokens=response.usage.cache_write_tokens,
+            cost_usd=response.cost_usd,
+            tool_calls=[c.name for c in response.message.tool_calls],
+        )
         state.usage = state.usage + response.usage
         state.cost_usd += response.cost_usd
         state.messages.append(response.message)

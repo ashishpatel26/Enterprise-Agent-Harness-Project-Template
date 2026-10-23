@@ -89,5 +89,6 @@ class RedactingFilter(logging.Filter):
             )
         for key, value in list(vars(record).items()):
             if key not in self._STD:
-                setattr(record, key, self.redactor.redact_obj(value))
+                redacted = REDACTED if _SENSITIVE_KEYS.search(key) and value else None
+                setattr(record, key, redacted or self.redactor.redact_obj(value))
         return True

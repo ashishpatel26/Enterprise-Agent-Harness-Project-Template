@@ -1,0 +1,76 @@
+# Local full stack: API + Redis + Postgres/pgvector + OpenTelemetry Collector + Jaeger.
+#   make up      -> http://localhost:8000/docs (API), http://localhost:16686 (Jaeger)
+#
+# SECURITY: the API mounts the Docker socket to start sandbox containers. Socket access is
+# equivalent to root on the host. Fine for local development; in production run sandboxes
+# through the Kubernetes backend (see docs/deployment.md) or a dedicated sandbox host.
+name: agent-harness
+
+services:
+  api:
+    build: .
+    image: agent-harness:local
+    env_file: [.env]
+    environment:
+      HARNESS_ENV: dev
+      HARNESS_STORAGE_BACKEND: redis
+      HARNESS_REDIS_URL: redis://redis:6379/0
+      HARNESS_DATABASE_URL: postgresql://harness:harness@postgres:5432/harness
+      HARNESS_OTEL_ENABLED: "true"
+      HARNESS_OTEL_ENDPOINT: http://otel-collector:4317
+      HARNESS_SANDBOX_BACKEND: docker
+    ports: ["8000:8000"]
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    group_add: ["${DOCKER_GID:-0}"]
+    depends_on:
+      redis: {condition: service_healthy}
+      postgres: {condition: service_healthy}
+      otel-collector: {condition: service_started}
+    read_only: true
+    tmpfs: ["/tmp", "/app/var"]
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    restart: unless-stopped
+
+  redis:
+    image: redis:7.4-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    ports: ["6379:6379"]
+    volumes: [redis-data:/data]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  postgres:
+    image: pgvector/pgvector:pg17
+    environment:
+      POSTGRES_USER: harness
+      POSTGRES_PASSWORD: harness
+      POSTGRES_DB: harness
+    ports: ["5432:5432"]
+    volumes: [pg-data:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U harness"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.115.1
+    command: ["--config=/etc/otelcol/config.yaml"]
+    volumes: ["./docker/otel-collector.yaml:/etc/otelcol/config.yaml:ro"]
+    ports: ["4317:4317", "4318:4318"]
+    depends_on: [jaeger]
+
+  jaeger:
+    image: jaegertracing/all-in-one:1.64.0
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"
+    ports: ["16686:16686"]
+
+volumes:
+  redis-data:
+  pg-data:

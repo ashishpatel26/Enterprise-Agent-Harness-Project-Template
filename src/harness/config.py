@@ -63,9 +63,19 @@ class Settings(BaseSettings):
 
     # --- Agents, policies, safety -------------------------------------------
     agents_dir: Path = Path("agents")
+    # Optional project prompt templates (<dir>/<name>/vN.md) overriding the built-ins.
+    prompts_dir: Path | None = None
     policy_path: Path = Path("policies/default.yaml")
     audit_log_path: Path = Path("var/audit.log")
     rate_limit_per_minute: int = Field(default=60, ge=1)
+    tool_calls_per_minute: int = Field(default=120, ge=1)
+    max_input_chars: int = Field(default=20_000, ge=1)
+    # What to do with tool output that matches prompt-injection heuristics.
+    injection_action: Literal["annotate", "block"] = "annotate"
+    # False = four-eyes: whoever started a run cannot approve its gated tool calls.
+    allow_self_approval: bool = True
+    # If set, only these API keys may approve/deny tool calls (comma-separated).
+    approver_keys: Annotated[list[SecretStr], NoDecode] = Field(default_factory=list)
     # web_fetch is disabled until domains are allow-listed (comma-separated).
     web_fetch_allowed_domains: Annotated[list[str], NoDecode] = Field(default_factory=list)
 
@@ -73,7 +83,7 @@ class Settings(BaseSettings):
     otel_endpoint: str | None = None
     otel_enabled: bool = False
 
-    @field_validator("api_keys", mode="before")
+    @field_validator("api_keys", "approver_keys", mode="before")
     @classmethod
     def _split_keys(cls, v: object) -> object:
         if isinstance(v, str):

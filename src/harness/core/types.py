@@ -91,6 +91,7 @@ EventType = Literal[
     "run_started",
     "think",
     "text_delta",
+    "llm_call",
     "plan",
     "act",
     "observe",
