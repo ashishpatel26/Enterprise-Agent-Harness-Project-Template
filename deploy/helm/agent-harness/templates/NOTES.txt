@@ -1,0 +1,16 @@
+agent-harness {{ .Chart.AppVersion }} is deploying.
+
+API:      kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "agent-harness.fullname" . }} 8000:{{ .Values.service.port }}
+Docs:     http://localhost:8000/docs
+Sandbox:  Pods run in namespace "{{ .Values.sandbox.namespace }}" (deny-all network{{ if .Values.sandbox.runtimeClassName }}, runtimeClass {{ .Values.sandbox.runtimeClassName }}{{ end }}).
+{{- if not .Values.sandbox.runtimeClassName }}
+
+WARNING: sandbox.runtimeClassName is empty, so model-written code shares the node kernel.
+Install gVisor (or Kata) and set sandbox.runtimeClassName for stronger isolation.
+{{- end }}
+{{- if and (not .Values.secrets.existingSecret) (not .Values.secrets.create) }}
+
+WARNING: no secrets configured. Set secrets.existingSecret with HARNESS_API_KEYS,
+HARNESS_REDIS_URL, HARNESS_DATABASE_URL and ANTHROPIC_API_KEY; the API refuses to
+start in prod without them.
+{{- end }}

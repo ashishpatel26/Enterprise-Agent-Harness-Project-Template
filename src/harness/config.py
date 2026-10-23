@@ -53,11 +53,13 @@ class Settings(BaseSettings):
     embedding_dim: int = Field(default=256, gt=0)
 
     # --- Sandbox -----------------------------------------------------------
-    # "docker", "local_unsafe", or the name of a `harness.sandboxes` plugin.
+    # "docker", "kubernetes", "local_unsafe", or the name of a `harness.sandboxes` plugin.
     sandbox_backend: str = "docker"
     sandbox_image: str = "agent-harness-sandbox:latest"
-    # Optional hardened OCI runtime for sandbox containers, e.g. "runsc" (gVisor).
+    # Hardened runtime: Docker `--runtime` (e.g. "runsc") or Kubernetes RuntimeClass name.
     sandbox_runtime: str | None = None
+    # Namespace for sandbox Pods (kubernetes backend).
+    sandbox_namespace: str = "agent-harness-sandbox"
     allow_unsafe_sandbox: bool = False
     workspace_root: Path = Path("examples")
 

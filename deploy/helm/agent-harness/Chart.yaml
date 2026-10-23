@@ -1,0 +1,9 @@
+apiVersion: v2
+name: agent-harness
+description: Production harness for AI agents (API, policy, approvals, sandboxed tools, memory, evals).
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+keywords: [ai, agents, llm, harness]
+home: https://github.com/your-org/agent-harness
+sources: [https://github.com/your-org/agent-harness]

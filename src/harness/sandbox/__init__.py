@@ -15,12 +15,23 @@ SandboxFactory = Callable[[Settings], Sandbox]
 
 
 def build_sandbox(settings: Settings) -> Sandbox:
-    """Built-ins: `docker`, `local_unsafe`. Plugins: entry-point group `harness.sandboxes`."""
+    """Built-ins: `docker`, `kubernetes`, `local_unsafe`.
+
+    Plugins: entry-point group `harness.sandboxes`, resolving to a `SandboxFactory`.
+    """
     backend = settings.sandbox_backend
     if backend == "docker":
         from harness.sandbox.docker_sandbox import DockerSandbox
 
         return DockerSandbox(settings.sandbox_image, runtime=settings.sandbox_runtime)
+    if backend == "kubernetes":
+        from harness.sandbox.kubernetes_sandbox import KubernetesSandbox
+
+        return KubernetesSandbox(
+            settings.sandbox_image,
+            namespace=settings.sandbox_namespace,
+            runtime_class=settings.sandbox_runtime,
+        )
     if backend == "local_unsafe":
         from harness.sandbox.local_unsafe import UnsafeLocalSandbox
 

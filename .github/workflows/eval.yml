@@ -1,0 +1,61 @@
+name: Evals
+
+# Offline evals (scripted models, real harness + Docker sandbox) gate every push to main.
+# Live evals (real models + LLM judge) run on demand and nightly when the secret is set.
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "0 3 * * *"
+  workflow_dispatch:
+    inputs:
+      live:
+        description: Run against real models (needs ANTHROPIC_API_KEY secret)
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  offline:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - run: uv sync --frozen
+      - run: docker build -f docker/sandbox.Dockerfile -t agent-harness-sandbox:latest .
+      - name: Run offline evals and gate on regressions
+        run: uv run harness eval evals/tasks --baseline evals/baseline.json --report-dir evals/reports
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: eval-report-offline
+          path: evals/reports/
+
+  live:
+    if: github.event_name == 'schedule' || inputs.live
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - run: uv sync --frozen
+      - run: docker build -f docker/sandbox.Dockerfile -t agent-harness-sandbox:latest .
+      - name: Run live evals with an LLM judge
+        if: env.ANTHROPIC_API_KEY != ''
+        run: >
+          uv run harness eval evals/tasks --live --judge anthropic/claude-opus-5-5
+          --report-dir evals/reports
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: eval-report-live
+          path: evals/reports/

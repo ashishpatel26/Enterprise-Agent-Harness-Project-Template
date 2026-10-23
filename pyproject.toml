@@ -29,6 +29,9 @@ dependencies = [
     "typer>=0.13",
 ]
 
+[project.optional-dependencies]
+kubernetes = ["kubernetes>=31.0"]
+
 [project.scripts]
 harness = "harness.cli:app"
 
@@ -73,7 +76,7 @@ files = ["src", "tests"]
 plugins = ["pydantic.mypy"]
 
 [[tool.mypy.overrides]]
-module = ["pgvector.*", "sse_starlette.*", "fakeredis.*"]
+module = ["pgvector.*", "sse_starlette.*", "fakeredis.*", "kubernetes.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]

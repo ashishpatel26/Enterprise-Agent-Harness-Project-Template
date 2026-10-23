@@ -1,0 +1,91 @@
+# Default values for agent-harness. Secrets belong in an existing Secret (see `secrets`).
+
+image:
+  repository: ghcr.io/your-org/agent-harness
+  tag: ""            # defaults to .Chart.AppVersion
+  pullPolicy: IfNotPresent
+imagePullSecrets: []
+
+replicaCount: 2
+
+# Non-secret settings (HARNESS_* environment variables). See .env.example for all keys.
+config:
+  HARNESS_ENV: prod
+  HARNESS_LOG_LEVEL: INFO
+  HARNESS_STORAGE_BACKEND: redis
+  HARNESS_OTEL_ENABLED: "false"
+  HARNESS_OTEL_ENDPOINT: ""
+  HARNESS_RATE_LIMIT_PER_MINUTE: "60"
+  HARNESS_INJECTION_ACTION: annotate
+  HARNESS_ALLOW_SELF_APPROVAL: "false"
+  HARNESS_WEB_FETCH_ALLOWED_DOMAINS: ""
+
+secrets:
+  # Name of an existing Secret with these keys (recommended; e.g. from External Secrets):
+  #   HARNESS_API_KEYS, HARNESS_REDIS_URL, HARNESS_DATABASE_URL,
+  #   ANTHROPIC_API_KEY, OPENAI_API_KEY (optional), HARNESS_APPROVER_KEYS (optional)
+  existingSecret: ""
+  # Only for quick evaluation: render a Secret from these values (they end up in Helm
+  # release history). Leave empty in production.
+  create: {}
+
+# Sandbox Pods for python_exec run in their own namespace with a deny-all NetworkPolicy,
+# Pod Security "restricted" and a ResourceQuota. No Docker socket is used.
+sandbox:
+  image: ghcr.io/your-org/agent-harness-sandbox:0.1.0
+  namespace: agent-harness-sandbox
+  createNamespace: true
+  # e.g. "gvisor" when a gVisor RuntimeClass is installed (strongly recommended).
+  runtimeClassName: ""
+  quota:
+    pods: "20"
+    limitsCpu: "16"
+    limitsMemory: 16Gi
+
+# Override agent definitions / policy without rebuilding the image. Keys are file names.
+agents: {}
+#  data_analyst.yaml: |
+#    name: data_analyst
+#    ...
+policy: ""
+
+service:
+  type: ClusterIP
+  port: 8000
+
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+  hosts:
+    - host: harness.example.com
+      paths: [{path: /, pathType: Prefix}]
+  tls: []
+
+resources:
+  requests: {cpu: 250m, memory: 512Mi}
+  limits: {cpu: "2", memory: 2Gi}
+
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 70
+
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+
+networkPolicy:
+  enabled: true
+  # Namespaces allowed to reach the API (e.g. your ingress controller). Empty = any.
+  ingressFromNamespaces: []
+
+serviceMonitor:
+  enabled: false
+  interval: 30s
+
+podAnnotations: {}
+nodeSelector: {}
+tolerations: []
+affinity: {}
