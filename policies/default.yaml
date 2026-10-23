@@ -1,0 +1,41 @@
+# Tool-use policy. Rules are evaluated top to bottom; the first match wins, so put
+# deny rules before allow rules. When no rule matches, `defaults` decides by the tool's
+# permission level. Effects: allow | deny | require_approval (the run pauses until a
+# human decides via POST /runs/{id}/approve).
+version: 1
+
+defaults:
+  read: allow
+  write: allow
+  dangerous: require_approval
+
+rules:
+  # Trial accounts cannot use dangerous tools at all.
+  - name: trial-users-no-dangerous-tools
+    users: ["trial-*"]
+    permissions: [dangerous]
+    effect: deny
+    reason: not available on trial accounts
+
+  # Keep model-written code bounded in size.
+  - name: cap-code-size
+    tools: [python_exec]
+    args:
+      code: {matches: "(?s)^.{20001,}$"}
+    effect: deny
+    reason: code longer than 20k characters
+
+  # Argument-level control: no queries against PII tables.
+  - name: no-pii-tables
+    tools: [sql_query]
+    args:
+      query: {matches: "(?i)\\b(users|customers|employees|credentials)\\b"}
+    effect: deny
+    reason: PII tables are off limits to agents
+
+  # python_exec runs in the network-less Docker sandbox. The analyst and coding agents
+  # may use it without a human in the loop; every other agent needs approval (default).
+  - name: analysts-run-sandboxed-code
+    tools: [python_exec]
+    agents: [data_analyst, coding]
+    effect: allow
