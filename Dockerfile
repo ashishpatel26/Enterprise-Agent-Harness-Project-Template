@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1.7
 # ---- build stage: resolve and install dependencies into a venv -------------------
-FROM python:3.12-slim AS build
+FROM python:3.15-slim AS build
 COPY --from=ghcr.io/astral-sh/uv:0.5 /uv /usr/local/bin/uv
 ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy UV_PYTHON_DOWNLOADS=never
 WORKDIR /app
@@ -10,7 +10,7 @@ COPY src ./src
 RUN --mount=type=cache,target=/root/.cache/uv uv sync --frozen --no-dev --extra kubernetes
 
 # ---- runtime stage: no build tools, non-root user -------------------------------
-FROM python:3.12-slim AS runtime
+FROM python:3.15-slim AS runtime
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PATH="/app/.venv/bin:$PATH" \
     HARNESS_AGENTS_DIR=/app/agents HARNESS_POLICY_PATH=/app/policies/default.yaml \
     HARNESS_WORKSPACE_ROOT=/app/examples HARNESS_AUDIT_LOG_PATH=/app/var/audit.log
