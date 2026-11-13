@@ -1,7 +1,7 @@
 # Locked-down image for running untrusted, model-written code.
 # Runtime hardening (no network, read-only root FS, cap-drop ALL, limits) is applied
 # by harness.sandbox.docker at container start; this image only provides the runtime.
-FROM python:3.12-slim
+FROM python:3.15-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
